@@ -7,6 +7,9 @@
 
 ## Introduction
 
+> This is best experienced by downloading the HTML file from this repository and opening it in your browser.
+
+
 This repository is an archive of the 2024 tomato inoculant project I performed as part of my Master's of Science in Integrative Biology at Kennesaw State University.
 
 The trial was conducted with the purpose of determining the effects of differing soil microbial inoculation timings on tomato plant photosynthesis and crop yield and quality. Photosynthesis metrics were taken with a Li-COR Li-600 and two PhotosynQ MultispeQ v2.0s, and include stomatal conductance 
