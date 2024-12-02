@@ -57,10 +57,8 @@ install_github("zachpeagler/multiFitR")
 require(multiFitR)
 install_github("zachpeagler/multiFitRgg")
 require(multiFitRgg)
-
-# include "ztils"
-## change this to github version once its pushed
-source("C:/Github/ztils/R/ztils.R")
+install_github("zachpeagler/ztils")
+require(ztils)
 
 ```
 
@@ -133,7 +131,7 @@ As a final note, this data has something wrong with it, as there are ~100 gsw va
 ```{r Li_data, include=TRUE, echo=TRUE}
 
 ## Load and clean Li-600 data
-Li_data_file <- "C:/Github/Portfolio/_data/tomato_inoculants/TIP24/TIP24_LI600.csv"
+Li_data_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/TIP24_LI600.csv"
 Li_data <- read.csv(Li_data_file, stringsAsFactors = T) %>%
   mutate(Treatment = case_when(
           Row==1~"Control",
@@ -167,7 +165,7 @@ Li_data_stats_byplant <- Li_data %>%
 
 ## 2.1.2 MultispeQ data
 ```{r mq_data}
-mq_file <- "C:/Github/Portfolio/_data/tomato_inoculants/TIP24/TIP24_Multispeq.csv"
+mq_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/TIP24_Multispeq.csv"
 m_data <- read.csv(mq_file) %>%
   mutate(Treatment = case_when(
       Row=="A"~"Control",
@@ -217,7 +215,7 @@ Make another pivot table to get the sum of fruit count, mass, and BER, fungus, a
 ```{r Fl_data, include=TRUE, echo=TRUE}
 
 ## Load and clean TIP24 fruit data
-Fl_data_file <- "C:/Github/Portfolio/_data/tomato_inoculants/TIP24/TIP24_Fruit.csv"
+Fl_data_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/TIP24_Fruit.csv"
 Fl_data <- read.csv(Fl_data_file, stringsAsFactors = T) %>%
   filter(mass >0) %>%
   mutate(Treatment = case_when(
