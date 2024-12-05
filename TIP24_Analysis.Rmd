@@ -43,6 +43,7 @@ GRAPHING
  - ggpubr
 
 OTHER
+ - svglite
  - devtools
  - multiFitR
  - multiFitRgg
@@ -50,7 +51,7 @@ OTHER
 
 ```{r setup, include=FALSE}
 # get packages
-require(tidyverse); require(lme4); require(showtext); require(scico); require(pwr); require(car); require(ggpubr); require(rstatix); require(MASS); require(devtools); require(multcomp)
+require(tidyverse); require(lme4); require(showtext); require(scico); require(pwr); require(car); require(ggpubr); require(rstatix); require(MASS); require(devtools); require(multcomp); require(svglite)
 
 ## secondary packages (requires devtools)
 install_github("zachpeagler/multiFitR")
@@ -164,9 +165,9 @@ Li_data_stats_byplant <- Li_data %>%
 ```
 
 ## 2.1.2 MultispeQ data
-```{r mq_data}
-mq_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/TIP24_Multispeq.csv"
-m_data <- read.csv(mq_file) %>%
+```{r m_data}
+m_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/TIP24_Multispeq.csv"
+m_data <- read.csv(m_file) %>%
   mutate(Treatment = case_when(
       Row=="A"~"Control",
       Row=="B"~"Transplantation",
@@ -291,6 +292,59 @@ Fl_sum_means <- Fl_sum_byplant %>%
 Fl_means <- Fl_data %>%
   group_by(Treatment) %>%
   summarise_at(vars(mass), list(mean=mean, sd=sd))
+```
+
+## 2.3 Further Data Wrangling
+
+```{r fda}
+# compare Li-600 and MultispeQ - PhiPS2
+## get mean and sd ps2 at each treatment and each date
+Li_ps2_means <- Li_data %>%
+  group_by(Treatment, Date) %>%
+  summarize_at(vars(PhiPS2), list(mean=mean, median=median, sd=sd))
+
+m_ps2_means <- m_data %>%
+  group_by(Treatment, Date) %>%
+  summarize_at(vars(Phi2), list(mean=mean, median=median, sd=sd))
+
+m_ps2_means <- m_ps2_means %>%
+  filter(Date %in% Li_ps2_means$Date) %>%
+  subset(as.character(Date) != "2024-07-09")
+
+Li_ps2_means <- Li_ps2_means %>%
+  filter(Date %in% m_ps2_means$Date) %>%
+  subset(as.character(Date) != "2024-07-09")
+
+Li_ps2_means$m_mean <- m_ps2_means$mean
+Li_ps2_means$m_median <- m_ps2_means$median
+Li_ps2_means$m_sd <- m_ps2_means$sd
+
+# build a new dataframe for PhiPS2 models
+## use time, minutesfromstart, date, row, pot, plant_fac, treatment, ambient light, ambient temp,leaf temp, ambient pressure, ambient humidity, daysfromgermination, PhiPS2, logitPS2, and device
+
+PS2_joined <- Li_data[,c(2,119,115,7,8,117,114,34,35,36,32,40,116,28,118)] %>% mutate(
+  Device = "Li600"
+) %>% rename(AmbientLight = Qamb,
+             AmbientPressure = P_atm,
+             AmbientHumidity = rh_s,
+             AmbientTemperature = Tref,
+             LeafTemperature = Tleaf,
+             Plant = plant_fac) %>%
+  mutate(AmbientPressure = AmbientPressure * 10)
+
+m_temp <- m_data[,c(67,71,66,64,7,65,63,12,27,11,10,34,68,41,69)] %>% mutate(
+  Device = "MultispeQ") %>%
+  rename(AmbientLight = Light.Intensity..PAR.,
+             AmbientPressure = Ambient.Pressure,
+             AmbientHumidity = Ambient.Humidity,
+             AmbientTemperature = Ambient.Temperature,
+             LeafTemperature = Leaf.Temperature,
+             Row = Row_num,
+             PhiPS2 = Phi2,
+             Plant = plant_fac)
+
+PS2_joined <- rbind(PS2_joined, m_temp)
+
 ```
 
 # 3. Analyses
@@ -650,8 +704,6 @@ ggplot(data = Li_data, aes(x=MinutesFromStart, y = PhiPS2, color = Treatment, sh
 ggplot(data = Li_data, aes(x= Treatment, y = logitPS2, fill=Treatment, color=Treatment)) +
   geom_boxplot(alpha=.5, width=0.5, outliers = FALSE)+
     geom_jitter( width=.15, height=0)+
-#    stat_compare_means(comparisons = list(c("Control","Germination"),c("Control", "Transplantation"), c("Control", "Germ+Trans")), size=8, family="mont")+
-#  stat_compare_means(label.x=3, label.y=3.5, size=8,family="mont")+
   scale_fill_manual(values=four_colors)+
   scale_color_manual(values=four_colors)+
   labs(
@@ -670,8 +722,6 @@ ggplot(data = Li_data, aes(x= Treatment, y = logitPS2, fill=Treatment, color=Tre
 ggplot(data = Li_data_stats_byplant, aes(x= Treatment, y = logitPS2_mean, fill=Treatment, color=Treatment)) +
   geom_boxplot(alpha=.5, width=0.3, outliers = FALSE)+
     geom_jitter( width=.15, height=0)+
-#    stat_compare_means(comparisons = list(c("Control","Germination"),c("Control", "Transplantation"), c("Control", "Germ+Trans"), c("Germination", "Transplantation"), c("Germination", "Germ+Trans"), c("Transplantation", "Germ+Trans")), size=8, family="mont")+
-#  stat_compare_means(label.x=3, label.y=.8, size=8,family="mont")+
   scale_fill_manual(values=four_colors)+
   scale_color_manual(values=four_colors)+
   labs(
@@ -751,8 +801,6 @@ ggplot(data = m_data, aes(x=MinutesFromStart, y = logitPS2,
 ggplot(data = m_data, aes(x= Treatment, y = logitPS2, fill=Treatment, color=Treatment)) +
   geom_boxplot(alpha=.5, width=0.3, outliers = FALSE)+
     geom_jitter( width=.15, height=0)+
-#    stat_compare_means(comparisons = list(c("Control","Germination"),c("Control", "Transplantation"), c("Control", "Germ+Trans")), size=8, family="mont")+
-#  stat_compare_means(label.x=3, label.y=3.5, size=8,family="mont")+
   scale_fill_manual(values=four_colors)+
   scale_color_manual(values=four_colors)+
   labs(
@@ -837,29 +885,7 @@ ggplot(data = Li_data, aes(x=Date, y = PhiPS2, color = Tleaf)) +
     title = element_text(size=20, family="open", face="bold", lineheight = .5)
   )
 
-# compare Li-600 and MultispeQ - PhiPS2
-## get mean and sd ps2 at each treatment and each date
-Li_ps2_means <- Li_data %>%
-  group_by(Treatment, Date) %>%
-  summarize_at(vars(logitPS2), list(mean=mean, median=median, sd=sd))
-
-m_ps2_means <- m_data %>%
-  group_by(Treatment, Date) %>%
-  summarize_at(vars(logitPS2), list(mean=mean, median=median, sd=sd))
-
-m_ps2_means <- m_ps2_means %>%
-  filter(Date %in% Li_ps2_means$Date) %>%
-  subset(as.character(Date) != "2024-07-09")
-
-Li_ps2_means <- Li_ps2_means %>%
-  filter(Date %in% m_ps2_means$Date) %>%
-  subset(as.character(Date) != "2024-07-09")
-
-Li_ps2_means$m_mean <- m_ps2_means$mean
-Li_ps2_means$m_median <- m_ps2_means$median
-Li_ps2_means$m_sd <- m_ps2_means$sd
-
-ggplot(Li_ps2_means, aes(x=median, y=m_median, color=Treatment, shape=Treatment, fill=Treatment))+
+ps2_comp <- ggplot(Li_ps2_means, aes(x=median, y=m_median, color=Treatment, shape=Treatment, fill=Treatment))+
   geom_point(size = 4)+
   geom_errorbar(aes(ymin = m_median - m_sd, ymax = m_median + m_sd))+
   geom_errorbarh(aes(xmin = median - sd, xmax = median + sd))+
@@ -880,6 +906,32 @@ ggplot(Li_ps2_means, aes(x=median, y=m_median, color=Treatment, shape=Treatment,
     axis.title = element_text(size=16, family = "mont", face= "bold"),
     title = element_text(size=20, family="open", face="bold", lineheight = .8)
   )
+print(ps2_comp)
+
+ggsave(filename = "phi2_comp.svg", plot = ps2_comp, width=10, height = 10)
+
+multiPDF_Z(subset(PS2_joined$logitPS2, PS2_joined$logitPS2>0), 100, "all", a_palette, "Logit PhiPS2")
+multiCDF_Z(subset(PS2_joined$logitPS2, PS2_joined$logitPS2>0), 100, "all", a_palette, "Logit PhiPS2")
+
+ps2_comp_scatter <- ggplot()+
+    geom_jitter(data=PS2_joined, aes(x=DaysFromGermination, y=logitPS2, color=Treatment, shape=Device),
+               width = 1.5,
+               alpha = 0.8)+ ylim(0,1.25)+
+    scale_fill_manual(values=four_colors)+
+    scale_color_manual(values=four_colors)+
+  labs(
+      title=str_wrap("LogitPS2 over days from germination", 40)
+  )+
+  theme(
+    text = element_text(size=16, family="mont"),
+    legend.position="right",
+    legend.title.position = "top",
+    axis.title = element_text(size=16, family = "mont", face= "bold"),
+    title = element_text(size=20, family="open", face="bold", lineheight = .8)
+  )
+print(ps2_comp_scatter)
+ggsave(filename = "phi2_comp_scatter.svg", plot = ps2_comp_scatter, width=10, height = 10)
+
 
 ```
 
@@ -889,31 +941,39 @@ Because we logit transformed PhiPS2, we should be able to treat it as normal.
 
 ```{r PhiPS2_analysis, include=TRUE, echo=TRUE}
 
-# linear mixed model with PhiPS2 as response, Treatment as predictor (explanatory), days from germination as fixed effect
+# INDIVIDUAL linear mixed model with PhiPS2 as response, Treatment as predictor (explanatory), days from germination as fixed effect
 
 mod_Phi2_dfg_LI600_s <- summary(mod_Phi2_dfg_LI600 <- (lm(
-  logitPS2 ~ Treatment + DaysFromGermination,
+  logitPS2 ~ Treatment + ( 1 | DaysFromGermination),
   data = Li_data)))
 print(mod_Phi2_dfg_LI600_s)
 ## R2 0.0713
 
 mod_Phi2_qamb_LI600_s <- summary(mod_Phi2_dfg_LI600 <- (lm(
-  logitPS2 ~ Treatment + Qamb,
+  logitPS2 ~ Treatment + ( 1 | Qamb),
   data = Li_data)))
 print(mod_Phi2_qamb_LI600_s)
 ## R2 0.0218
 
 mod_Phi2_dfg_Mult_s <- summary(mod_Phi2_dfg_Mult <- (lm(
-  logitPS2 ~ Treatment + DaysFromGermination,
+  logitPS2 ~ Treatment + ( 1 | DaysFromGermination),
   data = m_data)))
 print(mod_Phi2_dfg_Mult_s)
 ## R2 0.0998
 
-mod_Phi2_qamb_Mult_s <- summary(mod_Phi2_qamb_Mult <- (lm(
-  logitPS2 ~ Treatment + Light.Intensity..PAR.,
-  data = m_data)))
+require(lme4)
+mod_Phi2_qamb_Mult <- (lmer(
+  logitPS2 ~ Treatment + Light.Intensity..PAR. + (1 | plant_fac),
+  data = m_data))
 print(mod_Phi2_qamb_Mult_s)
 ## R2 0.5065
+
+# JOINED models
+mod_Phi2_joined_s <- summary( mod_Phi2_joined <- lm( 
+  logitPS2~ Treatment + DaysFromGermination + Device,
+  data = PS2_joined
+    ))
+print(mod_Phi2_joined_s)
 
 # run and plot predictions
 
@@ -951,7 +1011,7 @@ for (x in treatment_order) {
 p <- p +
   scale_color_scico_d(begin=0.9, end=0, palette=a_palette)+
   scale_fill_scico_d(begin=0.9, end=0, palette=a_palette)+
-labs(title = "Real vs Predicted for Li-600 logitPS2 ~ Treatment + Qamb")+
+labs(title = str_wrap("Real vs Predicted for Li-600 logitPS2 ~ Treatment + Qamb", 40))+
   ylab("logit PhiPS2")+
   xlab("Ambient Light (lumens)")+
   theme_minimal()+
@@ -999,7 +1059,7 @@ for (x in treatment_order) {
 p <- p +
   scale_color_scico_d(begin=0.9, end=0, palette=a_palette)+
   scale_fill_scico_d(begin=0.9, end=0, palette=a_palette)+
-labs(title = "Real vs Predicted for Li-600 logitPS2 ~ Treatment + DaysFromGermination")+
+labs(title = str_wrap("Real vs Predicted for Li-600 logitPS2 ~ Treatment + DaysFromGermination", 40))+
   ylab("logit PhiPS2")+
   xlab("Days From Germination")+
   theme_minimal()+
@@ -1046,7 +1106,7 @@ for (x in treatment_order) {
 p <- p +
   scale_color_scico_d(begin=0.9, end=0, palette=a_palette)+
   scale_fill_scico_d(begin=0.9, end=0, palette=a_palette)+
-labs(title = "Real vs Predicted for MultispeQ logitPS2 ~ Treatment + DaysFromGermination")+
+labs(title = str_wrap("Real vs Predicted for MultispeQ logitPS2 ~ Treatment + DaysFromGermination", 40))+
   ylab("logit PhiPS2")+
   xlab("Days From Germination")+
   theme_minimal()+
@@ -1093,7 +1153,7 @@ for (x in treatment_order) {
 p <- p +
   scale_color_scico_d(begin=0.9, end=0, palette=a_palette)+
   scale_fill_scico_d(begin=0.9, end=0, palette=a_palette)+
-labs(title = "Real vs Predicted for MultispeQ logitPS2 ~ Treatment + Light")+
+labs(title = str_wrap("Real vs Predicted for MultispeQ logitPS2 ~ Treatment + Light", 40))+
   ylab("logit PhiPS2")+
   xlab("Light Intensity (PAR)")+
   theme_minimal()+
@@ -1106,6 +1166,131 @@ labs(title = "Real vs Predicted for MultispeQ logitPS2 ~ Treatment + Light")+
 
 print(p)
 
+# Combined prediction DaysfromGermination
+## initialize prediction plot
+p <- ggplot()+
+  geom_point(data=PS2_joined, aes(x=DaysFromGermination, y=logitPS2, color=Treatment, shape=Device),
+             alpha = 0.8)
+
+## base LM
+lm_x <- (lm(logitPS2 ~ DaysFromGermination + Device, data=PS2_joined))
+## sequence
+DaysFromGermination <- seq(min(PS2_joined$DaysFromGermination), max(PS2_joined$DaysFromGermination), length=200)
+
+# loop over treatments
+for (x in treatment_order) {
+ ## treatment specific GLM
+  lm_x <- (lm(logitPS2 ~ DaysFromGermination, 
+                data=PS2_joined %>% filter(Treatment == x)))
+  ## calculate predictions
+  prx <- as.data.frame(x=DaysFromGermination)
+  pred <- predict(lm_x, newdata=prx, se.fit=TRUE, type="terms")
+  prx$lo <- exp(qnorm(0.025, pred$fit, pred$se.fit))
+  prx$mn <- exp(qnorm(0.5, pred$fit, pred$se.fit))
+  prx$up <- exp(qnorm(0.975, pred$fit, pred$se.fit))
+  prx$Treatment <- x
+  prx$Treatment <- factor(prx$Treatment, levels = treatment_order)
+  ## add predicted points
+  p <- p + 
+  geom_line(data=prx, aes(x=DaysFromGermination, y=lo, color = Treatment), linewidth=1, show.legend=FALSE)+
+  geom_line(data=prx, aes(x=DaysFromGermination, y=mn, color = Treatment), linewidth=2, show.legend=FALSE)+
+  geom_line(data=prx, aes(x=DaysFromGermination, y=up, color = Treatment), linewidth=1, show.legend=FALSE)+
+  geom_ribbon(data=prx, aes(x=DaysFromGermination, ymin=lo, ymax=up, fill=Treatment), alpha = 0.5)
+}
+p <- p +
+  scale_color_scico_d(begin=0.9, end=0, palette=a_palette)+
+  scale_fill_scico_d(begin=0.9, end=0, palette=a_palette)+
+labs(title = str_wrap("Real vs Predicted for logitPS2 ~ Treatment + DaysFromGermination + Device", 40))+
+  ylab("logit PhiPS2")+
+  xlab("Days From Germination")+
+  theme_minimal()+
+  theme(
+    text = element_text(size=16, family="mont"),
+    legend.position="right",
+    axis.title = element_text(size=16, family = "mont", face= "bold"),
+    title = element_text(size=20, family="open", face="bold", lineheight = .8)
+  )
+
+print(p)
+
+ggsave(filename = "joined_dfg_preds.svg", plot = p, width=10, height = 10)
+
+# Combined prediction Light
+## initialize prediction plot
+p <- ggplot()+
+  geom_point(data=PS2_joined, aes(x=AmbientLight, y=logitPS2, color=Treatment, shape=Device),
+             alpha = 0.8)
+
+## base LM
+lm_x <- (lm(logitPS2 ~ AmbientLight + Device, data=PS2_joined))
+## sequence
+AmbientLight <- seq(min(PS2_joined$AmbientLight), max(PS2_joined$AmbientLight), length=200)
+
+# loop over treatments
+for (x in treatment_order) {
+ ## treatment specific GLM
+  lm_x <- (lm(logitPS2 ~ AmbientLight, 
+                data=PS2_joined %>% filter(Treatment == x)))
+  ## calculate predictions
+  prx <- as.data.frame(x=AmbientLight)
+  pred <- predict(lm_x, newdata=prx, se.fit=TRUE, type="terms")
+  prx$lo <- exp(qnorm(0.025, pred$fit, pred$se.fit))
+  prx$mn <- exp(qnorm(0.5, pred$fit, pred$se.fit))
+  prx$up <- exp(qnorm(0.975, pred$fit, pred$se.fit))
+  prx$Treatment <- x
+  prx$Treatment <- factor(prx$Treatment, levels = treatment_order)
+  ## add predicted points
+  p <- p + 
+  geom_line(data=prx, aes(x=AmbientLight, y=lo, color = Treatment), linewidth=1, show.legend=FALSE)+
+  geom_line(data=prx, aes(x=AmbientLight, y=mn, color = Treatment), linewidth=2, show.legend=FALSE)+
+  geom_line(data=prx, aes(x=AmbientLight, y=up, color = Treatment), linewidth=1, show.legend=FALSE)+
+  geom_ribbon(data=prx, aes(x=AmbientLight, ymin=lo, ymax=up, fill=Treatment), alpha = 0.5)
+}
+p <- p +
+  scale_color_scico_d(begin=0.9, end=0, palette=a_palette)+
+  scale_fill_scico_d(begin=0.9, end=0, palette=a_palette)+
+labs(title = str_wrap("Real vs Predicted for logitPS2 ~ Treatment + AmbientLight + Device", 40))+
+  ylab("logit PhiPS2")+
+  xlab("AmbientLight")+
+  ylim(0,2)+
+  theme_minimal()+
+  theme(
+    text = element_text(size=16, family="mont"),
+    legend.position="right",
+    axis.title = element_text(size=16, family = "mont", face= "bold"),
+    title = element_text(size=20, family="open", face="bold", lineheight = .8)
+  )
+
+print(p)
+
+ggsave(filename = "joined_light_preds.svg", plot = p, width=10, height = 10)
+
+
+# PhiPS2 post hoc
+
+comps <- glht(mod_Phi2_joined, linfct=mcp(Treatment = "Tukey"))
+summary(glht(mod_Phi2_joined, linfct=mcp(Treatment = "Tukey")))
+cld(comps)
+
+ggplot(data = PS2_joined, aes(x= Treatment, y = logitPS2, fill=Treatment, color=Treatment, shape = Device)) +
+  geom_boxplot(alpha=.5, width=0.75, outliers = FALSE)+
+    geom_jitter( width=.15, height=0, size = 2, alpha = 0.5)+
+  scale_fill_manual(values=four_colors, guide = "none")+
+  scale_color_manual(values=four_colors, guide = "none")+
+  ylim(0, 1.4)+
+  annotate("text", x=1:4, y=1.3, label = c("a", "b", "a", "b"), size=5, family="open")+
+  labs(
+    title=str_wrap("Logit PhiPS2 Across Inoculation Treatments in Tomato", 40)
+  ) +
+  ylab("Logit PhiPS2")+
+  theme_bw()+
+  theme(
+    legend.position="right",
+    text = element_text(size=16, family="mont", lineheight=0.8),
+    axis.title = element_text(size=16, family = "mont", face= "bold"),
+    axis.text.x = element_text(size=12),
+    title = element_text(size=20, family="open", face="bold")
+  )
 
 ```
 
