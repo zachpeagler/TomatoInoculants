@@ -1,0 +1,304 @@
+---
+title: "TIP_Overview"
+author: "Zach Peagler"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: sandstone
+    toc: yes
+    toc_float:
+      collapsed: true
+---
+
+# 1. Setup
+
+## 1.1 Load Packages
+```{r packages, include=FALSE}
+# get packages
+require(tidyverse); require(lme4); require(showtext); require(scico); require(pwr); require(car); require(ggpubr); require(rstatix); require(MASS); require(devtools); require(multcomp)
+
+# custom package
+install_github("zachpeagler/ztils")
+require(ztils)
+```
+
+## 1.2. Experimental Constants
+```{r exp_constants}
+
+## germination date
+germdate23 <- "2023-04-14"
+germdate24 <- "2024-05-01"
+
+## treatment order
+treatment_order22 <- c("Control",
+                       )
+treatment_order23 <- c("Control",
+                     "Soil",
+                     "Foliar", 
+                     "Soil+Foliar")
+treatment_order24 <- c("Control",
+                     "Transplantation",
+                     "Germination", 
+                     "Germ+Trans")
+
+## plant factor order
+plant_order24 <- c("1 1", "1 2", "1 3", "1 4", "1 5", "1 6",
+                 "1 7", "1 8", "1 9", "1 10", "1 11", "1 12",
+                 "2 1", "2 2", "2 3", "2 4", "2 5", "2 6",
+                 "2 7", "2 8", "2 9", "2 10", "2 11", "2 12",
+                 "3 1", "3 2", "3 3", "3 4", "3 5", "3 6",
+                 "3 7", "3 8", "3 9", "3 10", "3 11", "3 12",
+                 "4 1", "4 2", "4 3", "4 4", "4 5", "4 6",
+                 "4 7", "4 8", "4 9", "4 10", "4 11", "4 12")
+```
+
+## 1.3. Load Data
+```{r data}
+# 2021
+d21_f_file <- "C:/Github/TomatoInoculants/data/2021/TIP21_Fruit.csv"
+d21_m_file <- "C:/Github/TomatoInoculants/data/2021/TIP21_Multispeq.csv"
+
+# 2022
+d22_f_file <- "C:/Github/TomatoInoculants/data/2022/TIP22_Fruit.csv"
+d22_m_file <- "C:/Github/TomatoInoculants/data/2022/TIP22_Multispeq.csv"
+
+# 2023
+d23_fg_file <- "C:/Github/TomatoInoculants/data/2023/TIP23_Fruit_Greenhouse.csv"
+d23_fl_file <- "C:/Github/TomatoInoculants/data/2023/TIP23_Fruit_Lab.csv"
+d23_m_file <- "C:/Github/TomatoInoculants/data/2023/TIP23_Multispeq.csv"
+d23_li_file <- "C:/Github/TomatoInoculants/data/2023/TIP23_LI600.csv"
+d23_st_file <- "C:/Github/TomatoInoculants/data/2023/TIP23_StomatalDensity.csv"
+
+# 2024
+d24_f_file <- "C:/Github/TomatoInoculants/data/2024/TIP24_Fruit.csv"
+d24_m_file <- "C:/Github/TomatoInoculants/data/2024/TIP24_Multispeq.csv"
+d24_li_file <- "C:/Github/TomatoInoculants/data/2024/TIP24_LI600.csv"
+
+```
+
+## 1.3 Clean Data
+```{r cleaning}
+# 2021
+## fruit
+d21_f <- read.csv(d21_f_file) %>% mutate(
+  Salt = case_when(
+    Salt=="N"~"FALSE",
+    Salt=="Y"~"TRUE"
+  ),
+  Salt = as.logical(Salt),
+  Inoculated = case_when(
+    Inoculated =="N"~"FALSE",
+    Inoculated =="Y"~"TRUE"
+  ),
+  Inoculated = as.logical(Inoculated),
+  BER = case_when(
+    BER=="N"~"FALSE",
+    BER=="Y"~"TRUE"
+  ),
+  BER = as.logical(BER)
+)
+
+a_temp <- data.frame(a=character(0))
+b_temp <- data.frame(b=numeric(0))
+
+for (x in seq_len(nrow(d21_f))) {
+  a = strsplit(d21_f$Pot, split="")[[x]][1]
+  b = strsplit(d21_f$Pot, split="")[[x]][2]
+  a_temp <- rbind(a_temp, a)
+  b_temp <- rbind(b_temp, b)
+} 
+
+d21_f$Row <- a_temp$X.A.
+d21_f$Plant <- as.factor(d21_f$Pot)
+d21_f$Pot <- b_temp$X.1.
+d21_f$Pot <- as.factor(d21_f$Pot)
+d21_f <- d21_f %>%
+    mutate(
+      Row_num = case_when(
+      Row=="A"~ 1,
+      Row=="B"~ 2,
+      Row=="C"~ 3,
+      Row=="D"~ 4,
+      TRUE~NA)
+    )
+d21_f$Row_num <- as.factor(d21_f$Row_num)
+d21_f$Row <- as.factor(d21_f$Row) 
+d21_f <- d21_f[,c(8,1,7,9,2,3,5,4,6)]
+colnames(d21_f) <- tolower(colnames(d21_f))
+## multispeq
+d21_m <- read.csv(d21_m_file)
+d21_m <- d21_m[,c(1,6,7,8,10,11,12,21,27,34,35,41,53,59)] %>%
+  rename(Pot = Pot.ID) %>%
+  mutate(
+      Row_num = case_when(
+      Row=="A"~ 1,
+      Row=="B"~ 2,
+      Row=="C"~ 3,
+      Row=="D"~ 4,
+      TRUE~NA),
+    Plant = as.factor(paste0(Row, Pot)),
+    Pot = as.factor(Pot),
+    Row = as.factor(Row),
+    Device.ID = as.factor(Device.ID),
+    Leaf.position = as.factor(Leaf.position),
+    Date = as.Date(time, "%m/%d/%Y"),
+    Time = parse_date_time(time, "%m/%d/%Y %H:%M %p"),
+    Time = format(Time, "%H:%M:%S"),
+    logitPS2 = logit(Phi2, FALSE),
+    logitFvPFmP = logit(FvP_over_FmP, FALSE)
+)
+colnames(d21_m) <- tolower(colnames(d21_m))
+
+
+# 2022
+## fruit
+d22_f <- read.csv(d22_f_file) %>%
+  mutate(
+    row = str_trim(row),
+    row_num = case_when(
+      row=="A"~ 1,
+      row=="B"~ 2,
+      row=="C"~ 3,
+      row=="D"~ 4,
+      TRUE~NA),
+    row = as.factor(row),
+    plant = as.factor(paste0(row, pot)),
+    pot = as.factor(pot),
+    ber = case_when(
+      ber=="N"~"FALSE",
+      ber=="Y"~"TRUE"
+    ),
+    ber = as.logical(ber),
+    eaten = case_when(
+      eaten=="N"~"FALSE",
+      eaten=="Y"~"TRUE"
+    ),
+    eaten = as.logical(eaten),
+    mold = case_when(
+      mold=="N"~"FALSE",
+      mold=="Y"~"TRUE"
+    ),
+    mold = as.logical(mold),
+    unsure = case_when(
+      unsure=="N"~"FALSE",
+      unsure=="Y"~"TRUE"
+    ),
+    unsure = as.logical(unsure),
+    date = paste(date, "2022", sep="-"),
+    date = as.Date(date, "%d-%b-%Y"),
+    sug_avg = (sug_1 + sug_2)/ 2
+  )
+
+## multispeq
+d22_m <- read.csv(d22_m_file)[,c(1,7,9,11,13,14,16,24,30,37,38,44,56,62)] %>%
+    rename(Pot = Pot.ID) %>%
+  mutate(Row_num = case_when(
+    Row=="A"~1,
+    Row=="B"~2,
+    Row=="C"~3,
+    Row=="D"~4),
+    Leaflet.Age = as.factor(Leaflet.Age),
+    Plant = as.factor(paste0(Row, Pot)),
+    Pot = as.factor(Pot),
+    Row = as.factor(Row),
+    Device.ID = as.factor(Device.ID),
+    Date = as.Date(time, "%m/%d/%Y"),
+    time = parse_date_time(time, "%m/%d/%Y %H:%M"),
+    Time = format(time, "%H:%M:%S"),
+    logitPS2 = logit(Phi2, FALSE),
+    logitFvPFmP = logit(FvP_over_FmP, FALSE)
+  )
+colnames(d22_m) <- tolower(colnames(d22_m))
+
+# 2023
+## Fruit Greenhouse (all fruit)
+d23_fg <- read.csv(d23_fg_file) %>%
+  mutate(
+    Row_num = case_when(
+     Row=="A"~1,
+     Row=="B"~2,
+     Row=="C"~3,
+     Row=="D"~4),
+    BER = case_when(
+      BER==0~"FALSE",
+      BER==1~"TRUE"),
+    BER = as.logical(BER),
+    Plant = as.factor(paste0(Row, Pot)),
+    Pot = as.factor(Pot),
+    Cluster = as.factor(Cluster),
+    Date = as.Date(Date, "%m/%d/%Y"),
+  )
+d23_fg <- d23_fg[,c(8,1,7,2,3,6,5,4)]
+colnames(d23_fg) <- tolower(colnames(d23_fg))
+
+## Fruit Lab (no BER; marketable fruit only)
+d23_fl <- read.csv(d23_fl_file) %>%
+  rename(pot = plant) %>%
+  mutate(
+    row_num = case_when(
+     row=="A"~1,
+     row=="B"~2,
+     row=="C"~3,
+     row=="D"~4),
+    Treatment = case_when(row=="A"~"Control",
+                               row=="B"~"Soil",
+                               row=="C"~"Foliar",
+                               row=="D"~"Soil+Foliar",
+                               TRUE ~ NA),
+    Sugar_grams = (sugar_avg/100)*mass,
+    row = as.factor(row),
+    pot = as.factor(pot),
+    cluster = as.factor(cluster),
+    plant = as.factor(paste0(row, pot)),
+    date = as.Date(date, "%m/%d/%Y")
+)
+colnames(d23_fl) <- tolower(colnames(d23_fl))
+
+## Li-600
+d23_li <- read.csv(d23_li_file, stringsAsFactors = T) %>%
+  mutate(Treatment = case_when(
+     Row==1~"Control",
+     Row==2~"Soil",
+     Row==3~"Foliar",
+     Row==4~"Soil+Foliar",
+            TRUE~NA)) %>%
+  filter(leak_pct<10) %>%
+  rename(Date_ref = Date) %>%
+  mutate(Date = parse_date_time(Date_ref, orders = "mdy"),
+         Time = parse_date_time(Time, orders = "T"),
+         DaysFromGermination = as.numeric(round(difftime(Date, germdate23, units = c("days")), 0)),
+         plant_fac = as.factor(paste(Row, Pot)),
+         Treatment = factor(Treatment, 
+                            levels = treatment_order23),
+         logitPS2 = logit(PhiPS2, FALSE)
+  ) %>%
+  group_by(DaysFromGermination) %>%
+  mutate(MinutesFromStart = round(difftime(Time, min(Time), units = "mins"), 2)) %>%
+  ungroup() %>%
+  mutate(
+    Time = format(Time, "%H:%M:%S")
+  )
+d23_li <- d23_li[,c(2,3,7,8,9,16,27,32,34,35,36,38,39,61,62,63,64,65,66)]
+colnames(d23_li) <- tolower(colnames(d23_li))
+
+## multispeq
+d23_m <- read.csv(d23_m_file)[,c(1,2,3,4,6,7,8,17,23,30,31,37,49,55)] %>%
+    rename(Pot = Pot.ID) %>%
+  mutate(Row_num = case_when(
+    Row=="A"~1,
+    Row=="B"~2,
+    Row=="C"~3,
+    Row=="D"~4),
+    Plant = as.factor(paste0(Row, Pot)),
+    Pot = as.factor(Pot),
+    Row = as.factor(Row),
+    Device.ID = as.factor(Device.ID),
+    Date = as.Date(time, "%m/%d/%Y"),
+    time = parse_date_time(time, "%m/%d/%Y %H:%M"),
+    Time = format(time, "%H:%M:%S"),
+    logitPS2 = logit(Phi2, FALSE),
+    logitFvPFmP = logit(FvP_over_FmP, FALSE)
+  )
+colnames(d22_m) <- tolower(colnames(d22_m))
+```
+

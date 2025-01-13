@@ -1,0 +1,572 @@
+---
+title: "Fall 2023 Analysis"
+author: "Zach Peagler"
+date: "2023-10-28"
+output: html_document
+---
+
+
+## Load Packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(tidyverse); require(lmerTest); require(RColorBrewer); require(hrbrthemes); require(viridis); require(showtext); require(scico); require(pwr);
+```
+
+## Power Analysis
+
+```{r power, echo=FALSE}
+
+pwr.anova.test(k=12, n=12, f=0.4, sig.level=0.05)
+
+
+```
+
+## Data
+
+### Porometer Data
+
+Filter porometer data to eliminate readings with a leak% greater than 10 and a stomatal conductance greater than 5.
+```{r load_p_data, echo=FALSE}
+p_data_file <- file.choose()
+p_data <- read.csv(p_data_file) %>%
+  mutate(Treatment = case_when(RowID==1~"Control",
+                               RowID==2~"Soil",
+                               RowID==3~"Foliar",
+                               RowID==4~"Soil and Foliar",
+                               TRUE ~ NA)) %>%
+  filter(leak_pct < 10 &
+           gsw < 5)
+
+```
+
+### MultispeQ Data
+
+```{r load_m_data, echo=FALSE}
+m_data_file<- file.choose() 
+m_data <- read.csv(m_data_file) %>%
+  mutate(Treatment = case_when(Row=="A"~"Control",
+                               Row=="B"~"Soil",
+                               Row=="C"~"Foliar",
+                               Row=="D"~"Soil and Foliar",
+                               TRUE~NA))
+```
+
+### Fruit Data
+
+```{r load_f_data, echo=FALSE}
+f_data_file<- file.choose()
+f_data <- read.csv(f_data_file) %>%
+  mutate(Treatment = case_when(Row=="A"~"Control",
+                               Row=="B"~"Soil",
+                               Row=="C"~"Foliar",
+                               Row=="D"~"Soil and Foliar",
+                               TRUE ~ NA)) %>%
+ mutate(TreatmentNumeric = case_when(Row=="A"~1,
+                               Row=="B"~2,
+                               Row=="C"~3,
+                               Row=="D"~4,
+                               TRUE ~ NA)) %>%
+  mutate(Presence = 1)
+  
+```
+
+### Fruit Sugar Data
+
+Filter out penetrometer readings greater than 4.
+
+```{r load_fs_data, echo=FALSE}
+fs_data_file<-file.choose()
+fs_data <- read.csv(fs_data_file) %>%
+    mutate(Treatment = case_when(Row=="A"~"Control",
+                               Row=="B"~"Soil",
+                               Row=="C"~"Foliar",
+                               Row=="D"~"Soil and Foliar",
+                               TRUE ~ NA)) %>%
+    mutate(SugarAbsolute = (SugarAvg/100)*Weight) %>%
+  filter(Penetrometer < 4 &
+         Cluster < 15)
+```
+
+
+## Colors
+
+```{r colors, echo=FALSE}
+
+two_colors=scico(2, palette="turku")
+four_colors =scico(4, palette="turku")
+
+```
+
+## Fonts
+
+```{r fonts, echo=FALSE}
+
+font_add_google("Open Sans", family = "open")
+font_add_google("Montserrat", family = "mont")
+showtext_auto()
+
+```
+
+# Analysis
+
+### Porometer Analysis
+
+Plants were measured regularly with a Li-COR LI-600 porometer/fluorometer. Important variables include stomatal conductance (gsw) and photosystem 2 quantum efficiency (PhiPS2).
+
+```{r p_analysis, echo=FALSE}
+
+# Date correction
+p_data$Date <- as.Date(p_data$Date, "%m/%d/%y")
+
+
+# Averages
+
+p_data_avgs <- p_data %>%
+  group_by(Treatment) %>%
+  summarise_at(vars(gsw), list(name=mean))
+
+
+# PhiPS2 by date
+
+ggplot(data = p_data, aes(x= Date, y = PhiPS2, color = Treatment)) +
+  geom_point()
+
+# GSW by date
+
+ggplot(data = p_data, aes(x= Date, y = gsw, color = Treatment)) +
+  geom_point()
+
+# PhiPS2 by treatment
+
+ggplot(data = p_data, aes(x= Treatment, y = PhiPS2, color=Treatment)) +
+  geom_boxplot()+
+  geom_jitter()
+
+# GSW by treatment
+
+ggplot(data = p_data, aes(x= Treatment, y = gsw, fill=Treatment)) +
+  geom_boxplot(alpha=1)+
+  #geom_jitter( width=.2, height=0)+
+  #geom_violin(alpha=0.5, width=1)+
+  scale_fill_manual(values=four_colors)+
+  labs(
+    title=str_wrap("Figure 1. Stomatal Conductance Across Inoculation Treatments in Salt Stressed Tomato", 40)
+  ) +
+  ylab(str_wrap("Stomatal Conductance (mol m-2 s-1)", 20))+
+  annotate("text", x=3, y=0.4, label="*", size=6)+
+  annotate("text", x=2, y=0.225, label="***", size=6)+
+  annotate("text", x=4, y=.075, label="***", size=6)+
+  theme_minimal()+
+  theme(
+    legend.position="none",
+    text = element_text(size=30, family="mont"),
+    axis.title = element_text(size=36, family = "mont", face= "bold"),
+    title = element_text(size=30, family="open", face="bold")
+  )
+
+# Density figure for stomatal conductance
+
+ggplot(data=p_data, aes(x=gsw, group=Treatment, fill=Treatment))+
+  geom_density(adjust=1, alpha=.5)+
+  scale_fill_manual(values=four_colors)+
+  ylab("Density")+
+  xlab("Stomatal Conductance (mol m-2 s-1)")+
+  theme_minimal()+
+  labs(
+    title="Stomatal Conductance Density for Inoculation Treatments in Salt Stressed Tomato"
+  )+
+  theme(
+    legend.position="none",
+    text = element_text(size=24, family="mont"),
+    axis.title = element_text(size=24, family = "mont", face= "bold"),
+    title = element_text(size=20, family="open", face="bold")
+  )+
+   annotate("text", x=0.35, y=1.8, label="Soil+Foliar", size=4, family="open")+
+   annotate("text", x=0.375, y=1.25, label="Foliar", size=4, family="open")+
+   annotate("text", x=0.4, y=0.925, label="Soil", size=4, family="open")+
+   annotate("text", x=0.55, y=.7, label="Control", size=4, family="open")
+
+## Individual density figures
+
+ggplot(data=p_data, aes(x=gsw, group=Treatment, fill=Treatment))+
+  geom_density(adjust=1.5, alpha=.5)+
+  scale_fill_manual(values=four_colors)+
+  facet_wrap(~Treatment)+
+  xlab("Stomatal Conductance (mol m-2 s-1)")+
+    ylab("Density")+
+    labs(
+    title="Stomatal Conductance Density for Inoculation Treatments in Salt Stressed Tomato"
+  )+
+  theme_minimal()+
+  theme(
+    legend.position="none",
+    axis.title = element_text(family = "open"),
+    title = element_text(family="open")
+  )
+
+# model with gsw as response, RH as random, and treatment as predictor
+
+summary(model_gsw <- (lmer(
+  gsw ~ Treatment + rh_s + (1|PotID),
+  data = p_data)))
+
+
+# model with PhiPS2 as response, Qamb as random, and treatment as predictor
+
+summary(model_PhiPS2 <- (lmer(
+  PhiPS2 ~ Treatment + Qamb + (1|PotID),
+  data = p_data)))
+
+```
+
+### MultispeQ Analysis
+
+MultispeQ measurements were taken regularly with PhotosynQ MultispeQs. Important variables from this includes Fv'/Fm' and PhiPS2.
+
+```{r m_analysis, echo=FALSE}
+
+#Phi2 analyses
+
+ggplot(data = m_data, aes(x= Treatment, y = Phi2)) +
+  geom_boxplot()
+
+summary(model_m_Phi2 <- (lmer(
+  Phi2 ~ Treatment + Light.Intensity..PAR. + (1|Pot.ID),
+  data = m_data)))
+
+#Fv'/Fm' analyses
+
+ggplot(data = m_data, aes(x= Treatment, y = FvP_over_FmP, fill=Treatment)) +
+  geom_violin(alpha=.6)+
+  geom_boxplot(alpha=.3, outlier.alpha = 0, width=0.1)+
+    scale_fill_manual(values=four_colors)+
+    theme_minimal()+
+  labs(
+    title="FvP/FmP Across Inoculation Treatments in Salt Stressed Tomato"
+  )+
+    theme(
+    legend.position="none",
+    axis.title = element_text(family = "open"),
+    title = element_text(family="open")
+  )
+
+
+summary(model_m_FvPFmP <- (lmer(
+  FvP_over_FmP ~ Treatment + Light.Intensity..PAR. + (1|Pot.ID),
+  data = m_data)))
+
+
+# Leaf thickness
+
+ggplot(data = m_data, aes(x= Treatment, y = leaf_thickness)) +
+  geom_boxplot()
+
+summary(model_m_leaf_thickness <- (lmer(
+  leaf_thickness ~ Treatment + (1|Pot.ID),
+  data = m_data)))
+
+# SPAD
+
+ggplot(data = m_data, aes(x= Treatment, y = SPAD)) +
+  geom_boxplot()
+
+summary(model_m_SPAD <- (lmer(
+  SPAD ~ Treatment + (1|Pot.ID),
+  data = m_data)))
+
+
+
+```
+
+### Fruit Analysis
+
+Fruit was collected from tomato plants upon ripening (exit of the breaker stage) and cataloged and weighed. Fruit without blossom-end rot was then brought back to the lab and further analyzed for sugar content.
+```{r f_analysis, echo=FALSE}
+
+#Date correction
+f_data$Date <- as.Date(f_data$Date, "%m/%d/%y")
+
+# Averages
+
+f_data_avgs <- f_data %>%
+  group_by(Row, BER) %>%
+  summarise_at(vars(Weight), list(name=mean))
+
+f_data_ber <- f_data %>%
+  group_by(Row) %>%
+  summarise_at(vars(BER, Presence), list(name=sum))
+
+# F_data sub dataframe creation
+
+f_data_summary <- f_data %>%
+#  filter(BER == 0) %>%
+  group_by(Treatment, Pot) %>%
+  summarize(Final_Weight = sum(Weight))
+
+f_data_control <- f_data %>%
+  filter(Treatment == "Control") %>%
+  group_by(Treatment, Pot, BER) %>%
+  summarize(Final_Weight = sum(Weight))
+
+f_data_s <- f_data %>%
+  filter(Treatment == "Soil") %>%
+  group_by(Treatment, Pot, BER) %>%
+  summarize(Final_Weight = sum(Weight))
+
+f_data_f <- f_data %>%
+  filter(Treatment == "Foliar") %>%
+  group_by(Treatment, Pot, BER) %>%
+  summarize(Final_Weight = sum(Weight))
+
+f_data_sf <- f_data %>%
+  filter(Treatment == "Soil and Foliar") %>%
+  group_by(Treatment, Pot, BER) %>%
+  summarize(Final_Weight = sum(Weight))
+
+# F_data final weight t tests
+
+t.test(Final_Weight ~ BER, data=f_data_control)
+t.test(Final_Weight ~ BER, data=f_data_s)
+t.test(Final_Weight ~ BER, data=f_data_f)
+t.test(Final_Weight ~ BER, data=f_data_sf)
+
+# Final weight by BER across Treatments
+
+ggplot(data = f_data_summary, aes(y = Final_Weight, x = Treatment, fill = as.factor(BER))) +
+  geom_boxplot(alpha=1)+
+    scale_fill_manual(values=two_colors, labels=c('Undiseased', 'Diseased'))+
+  guides(fill= guide_legend(title="Blossom-End Rot"),color="none")+
+    theme_minimal()+
+  theme(
+    legend.position ="top",
+    legend.box.background = element_rect(color="gray", linewidth=1),
+    text = element_text(size=30, family="mont"),
+    axis.title = element_text(size=36, family = "mont", face= "bold"),
+    title = element_text(size=30, family="open", face="bold")
+  )+
+  labs(
+    title=str_wrap("Figure 3. Total Fruit Weight Across Inoculation Treatments by Blossom-End Rot Presence", 40)
+  )+
+  ylab("Total Fruit Weight (g)")+
+  annotate("text", x=4.19, y=2750, label="***", size=6)
+
+#BER model
+
+summary(model_f_BER <- (lmer(
+  BER ~ Treatment + (1|Pot),
+  data = f_data)))
+
+#Fruit analyses
+
+### Fruit weight per treatment violin+boxes
+ggplot(data = f_data, aes(x= Treatment, y = Weight, fill=Treatment)) +
+  geom_violin(alpha=1)+
+  geom_boxplot(alpha=.2, width=0.2, outlier.alpha = 0)+
+  labs(
+    title=str_wrap("Figure 2. Fruit Weight Across Inoculation Treatments in Salt Stressed Tomato", 40)
+  )+
+  ylab("Weight(g)")+
+  scale_fill_manual(values=four_colors)+
+  theme_minimal()+
+  theme(
+    legend.position = "none",
+    text = element_text(size=30, family="mont"),
+    axis.title = element_text(size=36, family = "mont", face= "bold"),
+    title = element_text(size=30, family="open", face="bold")
+  )+
+  annotate("text", x=4, y=55, label="***", size=6)+
+  annotate("text", x=2, y=55, label="***", size=6)
+
+### Fruit weight by date, jitter, BER color
+ggplot(data = f_data, aes(x= Date, y = Weight, color=as.factor(BER))) +
+  geom_jitter(width=5, alpha=.9)+
+  scale_color_manual(values=two_colors, labels=c('Undiseased', 'Diseased'))+
+  guides(color= guide_legend(title="Blossom-End Rot"))+
+  labs(
+    title="Weight of tomatoes with and without blossom-end rot by date of harvest",
+  )+
+   ylab("Weight(g)")+
+  theme_minimal()+
+  theme(
+    legend.position=c(.8,.8)
+  )
+
+### Fruit weight by date, jitter, Treatment color
+ggplot(data = f_data, aes(x= Date, y = Weight, color=Treatment)) +
+  geom_jitter(width=5, alpha=.9)+
+  scale_color_manual(values=four_colors)+
+  labs(
+    title="Weight of salt stressed tomatoes across inoculation treatments by date of harvest",
+  )+
+   ylab("Weight(g)")+
+  theme_minimal()+
+  theme(
+    legend.position=c(.8,.8)
+  )
+
+### Density of weight per treatment, together
+ggplot(data=f_data, aes(x=Weight, group=Treatment, fill=Treatment))+
+  geom_density(adjust=2, alpha=.5)+
+  scale_fill_manual(values=four_colors)+
+  theme_minimal()+
+  theme(
+    legend.position="none",
+        axis.title = element_text(family = "open"),
+    title = element_text(family="open")
+  )
+
+### Density of weight per treatment, individual
+ggplot(data=f_data, aes(x=Weight, group=Treatment, fill=Treatment))+
+  geom_density(adjust=2, alpha=.5)+
+  scale_fill_manual(values=four_colors)+
+  facet_wrap(~Treatment)+
+  theme_minimal()+
+  theme(
+    legend.position="none",
+        axis.title = element_text(family = "open"),
+    title = element_text(family="open")
+  )
+
+## Models
+summary(model_f <- (lmer(
+  Weight ~ Treatment + BER + (1|Pot),
+  data = f_data)))
+
+summary(model_f <- (lmer(
+  Weight ~ Treatment + (1|Pot),
+  data = f_data)))
+
+summary(model_f <- (lmer(
+  Weight ~ Treatment + Cluster + (1|Pot),
+  data = f_data)))
+
+summary(model_f_summary <- (lmer(
+  Final_Weight ~ Treatment + (1|Pot),
+  data = f_data_summary)))
+
+
+```
+
+
+
+```{r fs_analysis, echo=FALSE}
+
+fs_data$Date <- as.Date(fs_data$Date, "%m/%d/%y")
+
+fs_data_avgs <- fs_data %>%
+  group_by(Treatment) %>%
+  summarise_at(vars(SugarAvg, Penetrometer), list(name=mean))
+
+
+fs_data_summary <- fs_data %>%
+#  filter(BER == 0) %>%
+  group_by(Treatment, Pot) %>%
+  summarize(Final_Weight = sum(Weight))
+
+fs_data_summary_sugar <- fs_data %>%
+  group_by(Treatment) %>%
+  summarize(TotalSugar = sum(SugarAbsolute))
+
+#Fruit sugar analyses
+
+ggplot(data = fs_data, aes(x= Treatment, y = SugarAvg, fill = Treatment)) +
+  geom_violin(alpha=1)+
+  geom_boxplot(alpha=.2, outlier.alpha=0, width=.25)+
+  #geom_jitter(alpha=0.2, width=0.1)+
+  labs(
+    title=str_wrap("Figure 4. Sugar Concentration Across Inoculation Treatments in Salt Stressed Tomato", 40)
+  ) +
+  ylab("Sugar%")+
+  scale_fill_manual(values=four_colors)+
+  theme_minimal()+
+    theme(
+    legend.position="none",
+    text = element_text(size=30, family="mont"),
+    axis.title = element_text(size=36, family = "mont", face= "bold"),
+    title = element_text(size=30, family="open", face="bold")
+  )+
+  annotate("text", x=2, y=8.5, label="***", size=6, family="open")+
+  annotate("text", x=4, y=9, label="***", size=6, family="open")
+
+ggplot(data = fs_data, aes(x= Treatment, y = SugarAbsolute, fill=Treatment)) +
+ geom_violin(alpha=1)+
+  geom_boxplot(alpha=.2, outlier.alpha=0, width=.25)+
+  labs(
+    title=str_wrap("Figure 4. Absolute Sugar Content Across Inoculation Treatments in Salt Stressed Tomato", 40)
+  ) +
+    ylab("Sugar (g) per Fruit")+
+  scale_fill_manual(values=four_colors)+
+  theme_minimal()+
+    theme(
+    legend.position="none",
+    text = element_text(size=30, family="mont"),
+    axis.title = element_text(size=36, family = "mont", face= "bold"),
+    title = element_text(size=30, family="open", face="bold")
+  )+
+    annotate("text", x=2, y=5, label="***", size=6, family="open")+
+    annotate("text", x=4, y=4, label="***", size=6, family="open")
+
+ggplot(data = fs_data, aes(x= Penetrometer, y = SugarAvg, color=Treatment)) +
+  geom_point()+
+  theme_minimal()
+
+ggplot(data = fs_data, aes(x= Weight, y = SugarAvg, color=Treatment)) +
+  geom_point()+
+  theme_minimal()+
+  facet_wrap(~Treatment)
+
+ggplot(data = fs_data, aes(x= Cluster, y = SugarAvg, color=Treatment)) +
+  geom_jitter()+
+  theme_minimal()
+
+ggplot(data = fs_data, aes(x=Date, y = SugarAvg, color=Treatment)) +
+  geom_jitter(width=10)+
+  theme_minimal()
+
+summary(model_fs <- (lmer(
+  SugarAvg ~ Treatment + (1|Pot),
+  data = fs_data)))
+
+summary(model_fs <- (lmer(
+  SugarAbsolute ~ Treatment + (1|Pot),
+  data = fs_data)))
+
+summary(model_fs_date <- (lmer(
+  SugarAvg ~ Date + (1|Treatment) + (1|Pot),
+  data = fs_data)))
+
+summary(model_fs_weight <- (lmer(
+  Final_Weight ~ Treatment + (1|Pot),
+  data = fs_data_summary)))
+
+
+## Penetrometer analysis
+
+
+ggplot(data = fs_data, aes(x=Treatment, y = Penetrometer, fill=Treatment)) +
+  geom_violin()+
+  geom_boxplot(alpha=0.2, width=0.3, outlier.alpha = 0)+
+    labs(
+    title=str_wrap("Firmness across inoculation treatments in salt stressed tomato", 40)
+  ) +
+  ylab("Firmness (kg)")+
+  scale_fill_manual(values=four_colors)+
+  theme_minimal()+
+    theme(
+    legend.position="none",
+    text = element_text(size=30, family="mont"),
+    axis.title = element_text(size=36, family = "mont", face= "bold"),
+    title = element_text(size=30, family="open", face="bold")
+  )+
+  annotate("text", x=4, y=1.825, label="***", size=6, family="open")
+
+summary(model_fs_penetrom <- (lmer(
+  Penetrometer ~ Treatment + (1|Pot),
+  data = fs_data)))
+
+summary(model_fs_penetrom <- (lmer(
+  Penetrometer ~ Treatment + Weight + (1|Pot),
+  data = fs_data)))
+
+```
