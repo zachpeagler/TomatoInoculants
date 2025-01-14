@@ -42,14 +42,14 @@ treatment_order24 <- c("Control",
                      "Germ+Trans")
 
 ## plant factor order
-plant_order24 <- c("1 1", "1 2", "1 3", "1 4", "1 5", "1 6",
-                 "1 7", "1 8", "1 9", "1 10", "1 11", "1 12",
-                 "2 1", "2 2", "2 3", "2 4", "2 5", "2 6",
-                 "2 7", "2 8", "2 9", "2 10", "2 11", "2 12",
-                 "3 1", "3 2", "3 3", "3 4", "3 5", "3 6",
-                 "3 7", "3 8", "3 9", "3 10", "3 11", "3 12",
-                 "4 1", "4 2", "4 3", "4 4", "4 5", "4 6",
-                 "4 7", "4 8", "4 9", "4 10", "4 11", "4 12")
+plant_order24 <- c("A1", "A2", "A3", "A4", "A5", "A6",
+                 "A7", "A8", "A9", "A10", "A11", "A12",
+                 "B1", "B2", "B3", "B4", "B5", "B6",
+                 "B7", "B8", "B9", "B10", "B11", "B12",
+                 "C1", "C2", "C3", "C4", "C5", "C6",
+                 "C7", "C8", "C9", "C10", "C11", "C12",
+                 "D1", "D2", "D3", "D4", "D5", "D6",
+                 "D7", "D8", "D9", "D10", "D11", "D12")
 ```
 
 ## 1.3. Load Data
@@ -284,6 +284,12 @@ colnames(d23_li) <- tolower(colnames(d23_li))
 ## multispeq
 d23_m <- read.csv(d23_m_file)[,c(1,2,3,4,6,7,8,17,23,30,31,37,49,55)] %>%
     rename(Pot = Pot.ID) %>%
+    mutate(Treatment = case_when(
+     Row=="A"~"Control",
+     Row=="B"~"Soil",
+     Row=="C"~"Foliar",
+     Row=="D"~"Soil+Foliar",
+            TRUE~NA)) %>%
   mutate(Row_num = case_when(
     Row=="A"~1,
     Row=="B"~2,
@@ -299,6 +305,53 @@ d23_m <- read.csv(d23_m_file)[,c(1,2,3,4,6,7,8,17,23,30,31,37,49,55)] %>%
     logitPS2 = logit(Phi2, FALSE),
     logitFvPFmP = logit(FvP_over_FmP, FALSE)
   )
-colnames(d22_m) <- tolower(colnames(d22_m))
+colnames(d23_m) <- tolower(colnames(d23_m))
+
+## stomatal density
+d23_st <- read.csv(d23_st_file) %>%
+  rename(pot = plant) %>%
+  mutate(Treatment = case_when(
+     row=="A"~"Control",
+     row=="B"~"Soil",
+     row=="C"~"Foliar",
+     row=="D"~"Soil+Foliar",
+            TRUE~NA),
+    plant = as.factor(paste0(row, pot)),
+    surface = as.factor(surface)
+)
+colnames(d23_st) <- tolower(colnames(d23_st))
+
+# 2024
+## fruit
+d24_f <- read.csv(d24_f_file) %>%
+  rename(pot = plant) %>%
+  mutate(row_let = case_when(
+    row==1~"A",
+    row==2~"B",
+    row==3~"C",
+    row==4~"D"),
+    treatment = case_when(
+      row==1~"Control",
+      row==2~"Transplantation",
+      row==3~"Germination",
+      row==4~"Germ+Trans",
+      TRUE~NA),
+    fruit = 1,
+    date_analysis = parse_date_time(date_analysis, orders = "mdy"),
+    date_harvest = parse_date_time(date_harvest, orders = "mdy"),
+    daysfromharvesttoanalysis = as.numeric(round(difftime(date_analysis, date_harvest, units = c("days")), 0)),
+    daysfromgermination = as.numeric(round(difftime(date_analysis, germdate24, units = c("days")), 0)),
+    plant = as.factor(paste0(row_let, pot)),
+    pot = as.factor(pot),
+    row_let = as.factor(row_let),
+    treatment = factor(treatment, levels = treatment_order24),
+    plant = factor(plant, levels = plant_order24),
+    fBER = as.factor(BER),
+    ffungus = as.factor(fungus),
+    fcracking = as.factor(cracking),
+    ripeness = abs(1 - round(penetrometer/max(na.omit(penetrometer)), 2)),
+    sugar_grams = (sugar_avg/100)*mass
+  )
+
 ```
 
