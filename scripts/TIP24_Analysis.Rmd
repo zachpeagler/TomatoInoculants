@@ -70,7 +70,7 @@ Set shape selection from ggplot's shape library.
 
 ```{r g_setup, include=TRUE, echo=TRUE}
 
-a_palette <- "bilbao"
+a_palette <- "oslo"
 # super lazy way to make n+1 palettes
 two_colors = scico(3, palette=a_palette)
 four_colors = scico(5, palette=a_palette)
@@ -129,7 +129,7 @@ As a final note, this data has something wrong with it, as there are ~100 gsw va
 ```{r Li_data, include=TRUE, echo=TRUE}
 
 ## Load and clean Li-600 data
-Li_data_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/TIP24_LI600.csv"
+Li_data_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/2024/TIP24_LI600.csv"
 Li_data <- read.csv(Li_data_file, stringsAsFactors = T) %>%
   mutate(Treatment = case_when(
           Row==1~"Control",
@@ -163,7 +163,7 @@ Li_data_stats_byplant <- Li_data %>%
 
 ## 2.1.2 MultispeQ data
 ```{r m_data}
-m_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/TIP24_Multispeq.csv"
+m_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/2024/TIP24_Multispeq.csv"
 m_data <- read.csv(m_file) %>%
   mutate(Treatment = case_when(
       Row=="A"~"Control",
@@ -213,7 +213,7 @@ Make another pivot table to get the sum of fruit count, mass, and BER, fungus, a
 ```{r Fl_data, include=TRUE, echo=TRUE}
 
 ## Load and clean TIP24 fruit data
-Fl_data_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/TIP24_Fruit.csv"
+Fl_data_file <- "https://raw.githubusercontent.com/zachpeagler/TomatoInoculants/refs/heads/main/data/2024/TIP24_Fruit.csv"
 Fl_data <- read.csv(Fl_data_file, stringsAsFactors = T) %>%
   filter(mass >0) %>%
   mutate(Treatment = case_when(
@@ -571,7 +571,7 @@ p <- p +
   scale_fill_scico_d(begin=0.9, end=0, palette=a_palette)+
 #  facet_wrap(~Treatment)+
   labs(title = "Real vs Predicted for gsw_rhs glm")+
-  ylab("Stomatal Conductance (mol+1 m-2 s-1)")+
+  ylab(str_wrap("Stomatal Conductance (mol+1 m-2 s-1)", 20))+
   xlab("Relative Humidity (%)")+
   ylim(0,2)+
   theme_minimal()+
@@ -582,10 +582,11 @@ p <- p +
     legend.background = element_rect(color=four_colors[3], fill=NA, 
                                      linewidth=.5, linetype = 2),
     axis.title = element_text(size=16, family = "mont", face= "bold"),
-    title = element_text(size=20, family="open", face="bold", lineheight = .5)
+    title = element_text(size=20, family="open", face="bold", lineheight = 1)
   )
 
 print(p)
+ggsave(filename = "gsw_preds.svg", path = "C:/Github/Thesis/figures/TIP24", plot = p, width=10, height = 8)
 
 # GSW_DFG
 
@@ -625,9 +626,8 @@ for (x in treatment_order) {
 p <- p +
   scale_color_scico_d(begin=0.9, end=0, palette=a_palette)+
   scale_fill_scico_d(begin=0.9, end=0, palette=a_palette)+
-  facet_wrap(~Treatment)+
   labs(title = "Real vs Predicted for gsw_dfg glm")+
-  ylab("Stomatal Conductance (mol+1 m-2 s-1)")+
+  ylab(str_wrap("Stomatal Conductance (mol+1 m-2 s-1)", 20))+
   xlab("Days From Germination")+
   theme_minimal()+
   theme(
@@ -638,6 +638,26 @@ p <- p +
   )
 
 print(p)
+
+# Mean GSW per plant by Treatment boxplot 
+ggplot(data = Li_data_stats_byplant, aes(x= Treatment, y = gsw_mean, fill=Treatment, color=Treatment)) +
+  geom_boxplot(alpha=.5, width=0.3, outliers = FALSE)+
+    geom_jitter( width=.15, height=0)+
+  scale_fill_manual(values=four_colors)+
+  scale_color_manual(values=four_colors)+
+  labs(
+    title=str_wrap("Mean Stomatal Conductance Per Plant
+                   By Inoculation Treatments in Tomato", 40)
+  ) +
+  annotate("text", x=1:4, y=.9, label = c("a", "b", "b", "b"), size=5, family="open")+
+  ylab(str_wrap("Stomatal Conductance (mol m-2 s-1)", 20))+
+  theme_bw()+
+  theme(
+    legend.position="none",
+    text = element_text(size=16, family="mont", lineheight=0.8),
+    axis.title = element_text(size=16, family = "mont", face= "bold"),
+    title = element_text(size=20, family="open", face="bold")
+  )
 
 ```
 
@@ -882,7 +902,7 @@ ggplot(data = Li_data, aes(x=Date, y = PhiPS2, color = Tleaf)) +
     title = element_text(size=20, family="open", face="bold", lineheight = .5)
   )
 
-ps2_comp <- ggplot(Li_ps2_means, aes(x=median, y=m_median, color=Treatment, shape=Treatment, fill=Treatment))+
+ps2_comp <- ggplot(PS2_joined, aes(x=median, y=m_median, color=Treatment, shape=Treatment, fill=Treatment))+
   geom_point(size = 4)+
   geom_errorbar(aes(ymin = m_median - m_sd, ymax = m_median + m_sd))+
   geom_errorbarh(aes(xmin = median - sd, xmax = median + sd))+
@@ -903,9 +923,6 @@ ps2_comp <- ggplot(Li_ps2_means, aes(x=median, y=m_median, color=Treatment, shap
     axis.title = element_text(size=16, family = "mont", face= "bold"),
     title = element_text(size=20, family="open", face="bold", lineheight = .8)
   )
-print(ps2_comp)
-
-ggsave(filename = "phi2_comp.svg", plot = ps2_comp, width=10, height = 10)
 
 multiPDF_Z(subset(PS2_joined$logitPS2, PS2_joined$logitPS2>0), 100, "all", a_palette, "Logit PhiPS2")
 multiCDF_Z(subset(PS2_joined$logitPS2, PS2_joined$logitPS2>0), 100, "all", a_palette, "Logit PhiPS2")
@@ -926,8 +943,8 @@ ps2_comp_scatter <- ggplot()+
     axis.title = element_text(size=16, family = "mont", face= "bold"),
     title = element_text(size=20, family="open", face="bold", lineheight = .8)
   )
-print(ps2_comp_scatter)
-ggsave(filename = "phi2_comp_scatter.svg", plot = ps2_comp_scatter, width=10, height = 10)
+#print(ps2_comp_scatter)
+#ggsave(filename = "phi2_comp_scatter.svg", plot = ps2_comp_scatter, width=10, height = 10)
 
 
 ```
@@ -1242,9 +1259,9 @@ labs(title = str_wrap("Real vs Predicted for logitPS2 ~ Treatment + DaysFromGerm
     title = element_text(size=20, family="open", face="bold", lineheight = .8)
   )
 
-print(p)
+#print(p)
 
-ggsave(filename = "joined_dfg_preds.svg", plot = p, width=10, height = 10)
+#ggsave(filename = "joined_dfg_preds.svg", plot = p, width=10, height = 10)
 
 # Combined prediction Light
 ## initialize prediction plot
@@ -1294,16 +1311,20 @@ labs(title = str_wrap("Real vs Predicted for logitPS2 ~ Treatment + AmbientLight
 
 print(p)
 
-ggsave(filename = "joined_light_preds.svg", plot = p, width=10, height = 10)
+#ggsave(filename = "joined_light_preds.svg", plot = p, width=10, height = 10)
 
 
 # PhiPS2 post hoc
+mod_Phi2_joined <- (lmer(logitPS2 ~ Treatment + (1|Device), 
+                data=PS2_joined))
+
+summary(mod_Phi2_joined)
 
 comps <- glht(mod_Phi2_joined, linfct=mcp(Treatment = "Tukey"))
 summary(glht(mod_Phi2_joined, linfct=mcp(Treatment = "Tukey")))
 cld(comps)
 
-ggplot(data = PS2_joined, aes(x= Treatment, y = logitPS2, fill=Treatment, color=Treatment, shape = Device)) +
+ggplot(data = PS2_joined, aes(x= Treatment, y = logitPS2, fill=Device, color=Device, shape = Device)) +
   geom_boxplot(alpha=.5, width=0.75, outliers = FALSE)+
     geom_jitter( width=.15, height=0, size = 2, alpha = 0.5)+
   scale_fill_manual(values=four_colors, guide = "none")+
@@ -1560,6 +1581,30 @@ print(mTg_glm_ln_pseudoR2)
 
 # Post Hoc Tests
 
+comps <- glht(mTg_glm, linfct=mcp(Treatment = "Tukey"))
+summary(glht(mTg_glm, linfct=mcp(Treatment = "Tukey")))
+cld(comps)
+
+## plot of mass mean per plant by treatment with box plots and jittered points
+ggplot(data=Fl_means_byplant, aes(x=Treatment, y=mass_mean, color=Treatment, fill=Treatment))+
+  geom_boxplot(width=0.3, alpha=0.5, outliers = FALSE)+
+  geom_jitter(width=0.1)+
+  scale_fill_manual(values=four_colors)+
+  scale_color_manual(values=four_colors)+
+  ylab("Mean Tomato Mass (g)")+
+  xlab("Treatment")+
+  theme_bw()+
+  annotate("text", x=1:4, y=200, label = c("a", "a", "a", "a"), size=5, family="open")+
+  labs(
+    title=str_wrap("Mean Tomato Mass Per Plant across Treatments", 40)
+  )+
+  theme(
+    legend.position="none",
+    text = element_text(size=16, family="mont", face="bold", lineheight=0.8),
+    axis.title = element_text(size=16, family = "mont", face= "bold"),
+    title = element_text(size=20, family="open", face="bold")
+  )
+
 ```
 
 ### 3.2.3 Sugar exploratory
@@ -1658,6 +1703,27 @@ print(mod_sugG_g_s)
 comps <- glht(mod_sugG_g, linfct=mcp(Treatment = "Tukey"))
 summary(glht(mod_sugG_g, linfct=mcp(Treatment = "Tukey")))
 cld(comps)
+
+## plot sugar means per plant by treatment as a boxplot with violins and jitter
+ggplot(data=Fl_means_byplant, aes(x=Treatment, y=sugar_avg_mean, color=Treatment, fill=Treatment))+
+  geom_boxplot(width=0.3, alpha=0.5, outliers = FALSE)+
+  geom_jitter(width=0.1)+
+  scale_fill_manual(values=four_colors)+
+  scale_color_manual(values=four_colors)+
+  ylab("Sugar Concentration (%)")+
+  xlab("Treatment")+
+  theme_bw()+
+  annotate("text", x=1:4, y=8.5, label = c("a", "a", "a", "a"), size=5, family="open")+
+
+  labs(
+    title=str_wrap("Mean Tomato Sugar Concentration per Plant across Treatments", 40)
+  )+
+  theme(
+    legend.position="none",
+    text = element_text(size=16, family="mont", face="bold", lineheight=0.8),
+    axis.title = element_text(size=16, family = "mont", face= "bold"),
+    title = element_text(size=20, family="open", face="bold")
+  )
 
 ```
 
@@ -1897,6 +1963,7 @@ ggplot(data=Fl_sum_byplant, aes(x=Treatment, y=fruit_sum, color=Treatment, fill=
   geom_jitter(width=0.15)+
     scale_fill_manual(values=four_colors)+
     scale_color_manual(values=four_colors)+
+    annotate("text", x=1:4, y=75, label = c("a", "a", "a", "a"), size=5, family="open")+
   ylab("Fruit Count")+
   xlab("Treatment")+
   theme_bw()+
@@ -1912,6 +1979,7 @@ ggplot(data=Fl_sum_byplant, aes(x=Treatment, y=fruit_sum, color=Treatment, fill=
 
 fca <- aov(fruit_sum~Treatment, data= Fl_sum_byplant)
 summary(fca)
+TukeyHSD(fca)
 
 fckw <- kruskal.test(fruit_sum~Treatment, data= Fl_sum_byplant)
 
@@ -1936,6 +2004,26 @@ ggplot(data=Fl_sum_byplant, aes(x=Treatment, y=pBER*100, color=Treatment, fill=T
 
 mod_ber_s <- summary(mod_ber <- lm(pBER ~ Treatment, data = Fl_sum_byplant))
 print(mod_ber_s)
+
+## plot of blossom-end rot by treatment - boxplot
+ggplot(data=Fl_sum_byplant, aes(x=Treatment, y=pBER*100, color=Treatment, fill=Treatment))+
+  geom_boxplot(width=0.3, alpha=0.5, outliers = FALSE)+
+  geom_jitter(width=0.15)+
+    scale_fill_manual(values=four_colors)+
+    scale_color_manual(values=four_colors)+
+  ylab("Percent of Fruit w/ BER")+
+  xlab("Treatment")+
+  theme_bw()+
+    annotate("text", x=1:4, y=20, label = c("a", "a", "a", "a"), size=5, family="open")+
+  labs(
+    title=str_wrap("Percent Blossom End Rot for Each Plant Across Treatments", 40)
+  )+
+  theme(
+    legend.position="none",
+    text = element_text(size=16, family="mont", face="bold"),
+    axis.title = element_text(size=16, family = "mont", face= "bold"),
+    title = element_text(size=20, family="open", face="bold")
+  )
 
 
 ```
